@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Visor Interactivo con Zoom</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+    <style>
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background-color: #000; font-family: sans-serif; user-select: none; -webkit-user-select: none; touch-action: none; }
+        #container { width: 100%; height: 100%; overflow: hidden; position: relative; }
+        #zoomContainer { width: 100%; height: 100%; display: flex; justify-content: center; align-items: center; transform-origin: 0 0; }
+        #stream, #drawCanvas { position: absolute; max-width: 100%; max-height: 100%; object-fit: contain; }
+        #drawCanvas { z-index: 5; pointer-events: none; }
+        #fullscreenBtn, #toolbox { position: absolute; z-index: 20; }
+        #fullscreenBtn { top: 10px; left: 10px; padding: 8px 12px; font-size: 14px; cursor: pointer; background-color: rgba(0, 0, 0, 0.5); color: white; border: 1px solid white; border-radius: 5px; }
+        #toolbox { top: 60px; left: 10px; background-color: rgba(40, 40, 40, 0.85); border: 1px solid #888; border-radius: 8px; padding: 5px; display: flex; align-items: center; gap: 5px; box-shadow: 0 4px 10px rgba(0,0,0,0.5); }
+        #toolbox-handle { width: 15px; height: 30px; cursor: move; display: flex; align-items: center; justify-content: center; color: #aaa; font-size: 14px; writing-mode: vertical-rl; }
+        #toolbox button, #colorPickerWrapper { width: 30px; height: 30px; border: 1px solid #666; border-radius: 5px; background-color: #333; color: white; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 18px; padding: 0; }
+        #toolbox button:hover, #colorPickerWrapper:hover { background-color: #555; }
+        #toolbox button.active { background-color: #007bff; border-color: #0056b3; }
+        #colorPickerWrapper { position: relative; overflow: hidden; }
+        #colorPicker { position: absolute; top: -10px; left: -10px; width: 50px; height: 50px; border: none; padding: 0; cursor: pointer; opacity: 0; }
+        #colorSwatch { width: 20px; height: 20px; border: 1px solid #fff; border-radius: 3px; }
+    </style>
+</head>
+<body>
+    <div id="container">
+        <div id="zoomContainer">
+            <img id="stream" alt="Esperando streaming...">
+            <canvas id="drawCanvas"></canvas>
+        </div>
+    </div>
+    <button id="fullscreenBtn">Pantalla Completa</button>
+    <div id="toolbox">
+        <div id="toolbox-handle">⠿</div>
+        <button id="pencilBtn" title="Lápiz">✏️</button>
+        <div id="colorPickerWrapper" title="Elegir color">
+            <div id="colorSwatch"></div>
+            <input type="color" id="colorPicker">
+        </div>
+        <button id="clearBtn" title="Limpiar todo">🗑️</button>
+    </div>
+    <script>
+        const container = document.getElementById('container');
+        const zoomContainer = document.getElementById('zoomContainer');
+        const streamImg = document.getElementById('stream');
+        const canvas = document.getElementById('drawCanvas');
+        const ctx = canvas.getContext('2d');
+        const pencilBtn = document.getElementById('pencilBtn');
+        let isPencilActive = false, isDrawing = false, currentColor = '#ff0000';
+        let scale = 1, pointX = 0, pointY = 0;
+        let start = { x: 0, y: 0 };
+        let initialPinchDistance = 0;
+        let currentObjectUrl = null;
+        const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
+        const ws = new WebSocket(protocol + '://' + window.location.host + '/stream');
+        ws.binaryType = 'blob';
+        ws.onmessage = (event) => {
+            if (currentObjectUrl) URL.revokeObjectURL(currentObjectUrl);
+            currentObjectUrl = URL.createObjectURL(event.data);
+            streamImg.src = currentObjectUrl;
+        };
+        function getEventPosition(evt) {
+            const rect = canvas.getBoundingClientRect();
+            const clientX = evt.touches ? evt.touches[0].clientX : evt.clientX;
+            const clientY = evt.touches ? evt.touches[0].clientY : evt.clientY;
+            const x = (clientX - rect.left) * (canvas.width / rect.width);
+            const y = (clientY - rect.top) * (canvas.height / rect.height);
+            return { x, y };
+        }
+        const startDrawing = (evt) => {
+            if (!isPencilActive || (evt.touches && evt.touches.length > 1)) return;
+            evt.preventDefault();
+            isDrawing = true;
+            setupDrawingStyle();
+            const pos = getEventPosition(evt);
+            ctx.beginPath();
+            ctx.moveTo(pos.x, pos.y);
+        };
+        const draw = (evt) => {
+            if (!isPencilActive || !isDrawing || (evt.touches && evt.touches.length > 1)) return;
+            evt.preventDefault();
+            const pos = getEventPosition(evt);
+            ctx.lineTo(pos.x, pos.y);
+            ctx.stroke();
+        };
+        const stopDrawing = () => { isDrawing = false; };
+        function applyTransform() {
+            zoomContainer.style.transform = 'translate(' + pointX + 'px, ' + pointY + 'px) scale(' + scale + ')';
+        }
+        function getDistance(p1, p2) {
+            return Math.hypot(p1.clientX - p2.clientX, p1.clientY - p2.clientY);
+        }
+        container.addEventListener('touchstart', (e) => {
+            if (isPencilActive) return;
+            e.preventDefault();
+            if (e.touches.length === 1) {
+                start.x = e.touches[0].clientX - pointX;
+                start.y = e.touches[0].clientY - pointY;
+            } else if (e.touches.length === 2) {
+                initialPinchDistance = getDistance(e.touches[0], e.touches[1]);
+            }
+        }, { passive: false });
+        container.addEventListener('touchmove', (e) => {
+            if (isPencilActive) return;
+            e.preventDefault();
+            if (e.touches.length === 1) {
+                pointX = e.touches[0].clientX - start.x;
+                pointY = e.touches[0].clientY - start.y;
+            } else if (e.touches.length === 2 && initialPinchDistance > 0) {
+                const currentDist = getDistance(e.touches[0], e.touches[1]);
+                const newScale = scale * (currentDist / initialPinchDistance);
+                if (newScale >= 1 && newScale < 8) {
+                    const rect = container.getBoundingClientRect();
+                    const midX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+                    const midY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+                    const x = midX - rect.left;
+                    const y = midY - rect.top;
+                    pointX = x - (x - pointX) * (newScale / scale);
+                    pointY = y - (y - pointY) * (newScale / scale);
+                    scale = newScale;
+                    initialPinchDistance = currentDist;
+                }
+            }
+            applyTransform();
+        }, { passive: false });
+        container.addEventListener('touchend', (e) => {
+            initialPinchDistance = 0;
+            if (e.touches.length === 1) {
+                start.x = e.touches[0].clientX - pointX;
+                start.y = e.touches[0].clientY - pointY;
+            }
+        });
+        canvas.addEventListener('mousedown', startDrawing);
+        canvas.addEventListener('mousemove', draw);
+        canvas.addEventListener('mouseup', stopDrawing);
+        canvas.addEventListener('mouseleave', stopDrawing);
+        canvas.addEventListener('touchstart', startDrawing, { passive: false });
+        canvas.addEventListener('touchmove', draw, { passive: false });
+        canvas.addEventListener('touchend', stopDrawing);
+        let hasSizedCanvas = false;
+        function resizeCanvas() {
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = canvas.width;
+            tempCanvas.height = canvas.height;
+            if (canvas.width > 0) tempCanvas.getContext('2d').drawImage(canvas, 0, 0);
+            const rect = streamImg.getBoundingClientRect();
+            const w = streamImg.naturalWidth || rect.width;
+            const h = streamImg.naturalHeight || rect.height;
+            if (w > 0 && h > 0) {
+                canvas.width = w;
+                canvas.height = h;
+                canvas.style.width = rect.width + 'px';
+                canvas.style.height = rect.height + 'px';
+                if (tempCanvas.width > 0) ctx.drawImage(tempCanvas, 0, 0, canvas.width, canvas.height);
+                setupDrawingStyle();
+            }
+        }
+        streamImg.onload = () => { if (!hasSizedCanvas) { resizeCanvas(); hasSizedCanvas = true; } };
+        window.addEventListener('resize', () => { resizeCanvas(); scale = 1; pointX = 0; pointY = 0; applyTransform(); });
+        const clearBtn = document.getElementById('clearBtn');
+        const colorPicker = document.getElementById('colorPicker');
+        const colorSwatch = document.getElementById('colorSwatch');
+        const setupDrawingStyle = () => {
+            ctx.strokeStyle = currentColor;
+            ctx.lineWidth = 3 * (canvas.width / canvas.offsetWidth || 1);
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+            colorPicker.value = currentColor;
+            colorSwatch.style.backgroundColor = currentColor;
+        };
+        pencilBtn.addEventListener('click', () => {
+            isPencilActive = !isPencilActive;
+            pencilBtn.classList.toggle('active', isPencilActive);
+            canvas.style.pointerEvents = isPencilActive ? 'all' : 'none';
+            canvas.style.cursor = isPencilActive ? 'crosshair' : 'default';
+        });
+        colorPicker.addEventListener('input', (e) => { currentColor = e.target.value; setupDrawingStyle(); });
+        clearBtn.addEventListener('click', () => ctx.clearRect(0, 0, canvas.width, canvas.height));
+        const toolbox = document.getElementById('toolbox'); const toolboxHandle = document.getElementById('toolbox-handle');
+        let isDraggingToolbox = false, dragOffsetX, dragOffsetY;
+        const startDrag = (evt) => { isDraggingToolbox = true; const rect = toolbox.getBoundingClientRect(); const clientX = evt.touches ? evt.touches[0].clientX : evt.clientX; const clientY = evt.touches ? evt.touches[0].clientY : evt.clientY; dragOffsetX = clientX - rect.left; dragOffsetY = clientY - rect.top; };
+        const dragging = (evt) => { if (!isDraggingToolbox) return; evt.preventDefault(); const clientX = evt.touches ? evt.touches[0].clientX : evt.clientX; const clientY = evt.touches ? evt.touches[0].clientY : evt.clientY; toolbox.style.left = Math.max(0, Math.min(clientX - dragOffsetX, window.innerWidth - toolbox.offsetWidth)) + 'px'; toolbox.style.top = Math.max(0, Math.min(clientY - dragOffsetY, window.innerHeight - toolbox.offsetHeight)) + 'px'; };
+        const stopDrag = () => { isDraggingToolbox = false; };
+        ['mousedown', 'touchstart'].forEach(e => toolboxHandle.addEventListener(e, startDrag, { passive: false }));
+        ['mousemove', 'touchmove'].forEach(e => window.addEventListener(e, dragging, { passive: false }));
+        ['mouseup', 'touchend'].forEach(e => window.addEventListener(e, stopDrag));
+        const fullscreenBtn = document.getElementById('fullscreenBtn');
+        fullscreenBtn.addEventListener('click', () => { if (!document.fullscreenElement) document.body.requestFullscreen(); else document.exitFullscreen(); });
+        setupDrawingStyle();
+    </script>
+</body>
+</html>
