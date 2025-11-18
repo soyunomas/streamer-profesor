@@ -57,11 +57,14 @@ Puedes ajustar el rendimiento añadiendo parámetros al comando:
 *   `-fps`: Límite de cuadros por segundo.
 
 **Ejemplo para redes WiFi inestables:**
+
 ```bash
 ./streamer-profesor -quality=30 -fps=10
 ```
 
-**Ejemplo para máxima calidad (red cableada):**```bash
+**Ejemplo para máxima calidad (red cableada):**
+
+```bash
 ./streamer-profesor -quality=80 -fps=25
 ```
 
