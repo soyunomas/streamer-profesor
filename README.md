@@ -2,7 +2,7 @@
 
 Herramienta ligera para transmitir el escritorio a otros dispositivos en la misma red local (LAN) utilizando un navegador web.
 
-![Captura de la aplicación](screenshot.png)
+![Captura de la aplicación](./screenshot.png)
 
 ## Características
 
@@ -20,7 +20,7 @@ Permite al docente enviar la señal de su ordenador a la PDI simplemente abriend
 
 ## 📥 Descarga
 
-Puedes descargar los binarios compilados en la sección de **[Releases](https://github.com/soyunomas/emisor-pantalla/releases)**.
+Puedes descargar los binarios compilados en la sección de **[Releases](https://github.com/soyunomas/streamer-profesor/releases)**.
 
 Solo descarga el archivo correspondiente a tu arquitectura:
 *   **Windows** (`.exe`)
