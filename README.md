@@ -61,8 +61,7 @@ Puedes ajustar el rendimiento añadiendo parámetros al comando:
 ./streamer-profesor -quality=30 -fps=10
 ```
 
-**Ejemplo para máxima calidad (red cableada):**
-```bash
+**Ejemplo para máxima calidad (red cableada):**```bash
 ./streamer-profesor -quality=80 -fps=25
 ```
 
@@ -77,13 +76,37 @@ sudo apt update
 sudo apt install libx11-dev libx11-xcb-dev libxtst-dev libxcb1-dev libxkbcommon-dev libxkbcommon-x11-dev
 ```
 
-### Comandos
-Usa el `Makefile` incluido:
+### Nota sobre la Compilación Cruzada
 
-```bash
-make build      # Compilar para el sistema actual
-make build-all  # Compilar para Windows, Mac y Linux
-make clean      # Limpiar
+Las funciones de feedback visual (cursor rojo y efecto de clic) dependen de librerías del sistema operativo que no se pueden compilar de forma cruzada fácilmente. Por tanto:
+*   **La compilación nativa en Linux (amd64)** incluirá todas las características.
+*   **Las compilaciones para Windows, macOS y Raspberry Pi (ARM)** funcionarán perfectamente, pero **no mostrarán el cursor del ratón ni el efecto de clic**.
+
+### Comandos del Makefile
+
+Usa el `Makefile` incluido para facilitar el proceso. Ejecuta `make help` para ver todos los comandos disponibles:
+
+```
+----------------------------------------------------
+ Comandos disponibles para el proyecto emisor-pantalla:
+----------------------------------------------------
+  make build             - Compila el binario para el sistema nativo (Linux).
+  make run               - Ejecuta la aplicación para pruebas rápidas.
+  make clean             - Elimina todos los binarios y directorios de compilación.
+  make tidy              - Sincroniza las dependencias del proyecto.
+
+  make build-all         - Compila para Windows, macOS (Intel/ARM) y Linux (amd64).
+  make build-windows     - Compila para Windows (64-bit).
+  make build-linux       - Compila para Linux (amd64).
+  make build-macos-intel - Compila para macOS (Intel).
+  make build-macos-arm   - Compila para macOS (Apple Silicon).
+
+  make build-rpi-all     - Compila para Raspberry Pi (32 y 64 bits).
+  make build-rpi-64      - Compila para Raspberry Pi (64-bit OS).
+  make build-rpi-32      - Compila para Raspberry Pi (32-bit OS).
+
+  make                   - Alias para 'make build'.
+  make help              - Muestra esta ayuda.
 ```
 
 ## 📄 Licencia
