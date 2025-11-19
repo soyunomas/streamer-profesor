@@ -6,10 +6,9 @@ import (
 	"log"
 	"net"
 	"net/http"
-	"path/filepath"
-	"runtime"
 
-	"emisor-pantalla/internal/hub" // Importamos nuestro propio paquete hub
+	"emisor-pantalla/internal/hub"
+	"emisor-pantalla/web" // Importamos el paquete web que acabamos de crear
 
 	"github.com/gorilla/websocket"
 )
@@ -20,7 +19,7 @@ var upgrader = websocket.Upgrader{
 
 // Iniciar configura las rutas y arranca el servidor HTTP.
 func Iniciar(h *hub.Hub, puerto string) {
-	// Servir el archivo estático index.html
+	// Servir el archivo estático index.html desde la memoria embebida
 	http.HandleFunc("/", serveIndex)
 
 	// Manejador para la conexión WebSocket
@@ -58,16 +57,19 @@ func handleWebSocket(h *hub.Hub, w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// serveIndex sirve el archivo estático index.html.
+// serveIndex sirve el archivo index.html incrustado en el binario.
 func serveIndex(w http.ResponseWriter, r *http.Request) {
-	// Obtener la ruta del directorio del archivo actual (servidor.go)
-	_, b, _, _ := runtime.Caller(0)
-	basepath := filepath.Dir(b)
+	// Leemos el archivo directamente de la variable Assets del paquete web
+	content, err := web.Assets.ReadFile("static/index.html")
+	if err != nil {
+		log.Printf("Error leyendo index.html: %v", err)
+		w.WriteHeader(http.StatusNotFound)
+		w.Write([]byte("404 - No se encontró el archivo index.html"))
+		return
+	}
 
-	// Construir la ruta al archivo index.html
-	htmlPath := filepath.Join(basepath, "..", "..", "web", "static", "index.html")
-
-	http.ServeFile(w, r, htmlPath)
+	w.Header().Set("Content-Type", "text/html")
+	w.Write(content)
 }
 
 // getOutboundIP obtiene la IP local no-loopback.
