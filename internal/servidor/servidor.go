@@ -8,7 +8,7 @@ import (
 	"net/http"
 
 	"emisor-pantalla/internal/hub"
-	"emisor-pantalla/web" // Importamos el paquete web que acabamos de crear
+	"emisor-pantalla/web"
 
 	"github.com/gorilla/websocket"
 )
@@ -33,8 +33,15 @@ func Iniciar(h *hub.Hub, puerto string) {
 	}
 
 	listenAddr := fmt.Sprintf(":%s", puerto)
-	log.Printf("Servidor iniciado. Abre http://%s%s en el navegador del alumno.", localIP, listenAddr)
-	log.Fatal(http.ListenAndServe(listenAddr, nil))
+	log.Printf("----------------------------------------------------------------")
+	log.Printf("🚀 SERVIDOR LISTO")
+	log.Printf("👉 Alumnos:   http://%s%s", localIP, listenAddr)
+	log.Printf("👉 Profesor:  Usa el menú 'Modo Profesor' en la web para admin.")
+	log.Printf("----------------------------------------------------------------")
+	
+	if err := http.ListenAndServe(listenAddr, nil); err != nil {
+		log.Fatal("Error iniciando servidor:", err)
+	}
 }
 
 // handleWebSocket gestiona la conexión WebSocket de un cliente.
@@ -44,22 +51,18 @@ func handleWebSocket(h *hub.Hub, w http.ResponseWriter, r *http.Request) {
 		log.Printf("Error al actualizar a WebSocket: %v", err)
 		return
 	}
-	defer conn.Close()
-
-	h.AddClient(conn)
-	defer h.RemoveClient(conn)
-
-	// Mantener la conexión abierta hasta que el cliente se desconecte
-	for {
-		if _, _, err := conn.ReadMessage(); err != nil {
-			break
-		}
-	}
+	
+	// Registramos al cliente
+	client := h.AddClient(conn)
+	
+	// --- ESTA ES LA LÍNEA CRÍTICA QUE FALTABA O ESTABA MAL ---
+	// Escuchamos los mensajes (PIN, Pausa) y los pasamos al Hub.
+	// La versión antigua solo hacía un loop vacío aquí.
+	h.ListenClientMessages(client) 
 }
 
 // serveIndex sirve el archivo index.html incrustado en el binario.
 func serveIndex(w http.ResponseWriter, r *http.Request) {
-	// Leemos el archivo directamente de la variable Assets del paquete web
 	content, err := web.Assets.ReadFile("static/index.html")
 	if err != nil {
 		log.Printf("Error leyendo index.html: %v", err)
@@ -99,5 +102,5 @@ func getOutboundIP() (string, error) {
 			}
 		}
 	}
-	return "", errors.New("no se encontró una IP de red local adecuada")
+	return "", errors.New("no IP found")
 }
